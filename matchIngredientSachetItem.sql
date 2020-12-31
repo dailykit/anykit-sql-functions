@@ -19,8 +19,9 @@ result jsonb;
 arr jsonb := '[]';
 matched_ingredient jsonb;
 BEGIN IF supplierItemInputs IS NOT NULL THEN FOR supplier_item IN
-SELECT "supplierItem".id,
-  "supplierItem"."name"
+SELECT "sachetItem".id sachet_id,
+  "supplierItem".id,
+  "supplierItem".name
 FROM inventory."sachetItem"
   Inner JOIN inventory."bulkItem" ON "bulkItemId" = "bulkItem"."id"
   Inner JOIN inventory."supplierItem" ON "supplierItemId" = "supplierItem"."id"
@@ -32,18 +33,19 @@ IF matched_ingredient IS NOT NULL THEN arr := arr || jsonb_build_object(
   'ingredient',
   matched_ingredient,
   'supplierItemId',
-  supplier_item.id
+  supplier_item.id,
+  'sachetItemId',
+  supplier_item.sachet_id
 );
 END IF;
 END LOOP;
 ELSE FOR supplier_item IN
-SELECT "supplierItem".id,
-  "supplierItem"."name",
-  "supplierItem"."unitSize",
-  "supplierItem".unit,
-  "processingName"
-FROM inventory."supplierItem"
-  LEFT JOIN inventory."bulkItem" ON "bulkItemAsShippedId" = "bulkItem"."id" LOOP
+SELECT "sachetItem".id sachet_id,
+  "supplierItem".id,
+  "supplierItem".name
+FROM inventory."sachetItem"
+  Inner JOIN inventory."bulkItem" ON "bulkItemId" = "bulkItem"."id"
+  Inner JOIN inventory."supplierItem" ON "supplierItemId" = "supplierItem"."id" LOOP
 SELECT *
 FROM jsonb_array_elements(ingredients) AS found_ingredient
 WHERE (found_ingredient->>'ingredientName') = supplier_item.name INTO matched_ingredient;
@@ -51,7 +53,9 @@ IF matched_ingredient IS NOT NULL THEN arr := arr || jsonb_build_object(
   'ingredient',
   matched_ingredient,
   'supplierItemId',
-  supplier_item.id
+  supplier_item.id,
+  'sachetItemId',
+  supplier_item.sachet_id
 );
 END IF;
 END LOOP;

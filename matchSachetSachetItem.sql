@@ -27,7 +27,8 @@ SELECT "supplierItem".id,
   "processingName",
   "bulkItem".id "processingId",
   "sachetItem"."unitSize",
-  "sachetItem"."unit"
+  "sachetItem"."unit",
+  "sachetItem"."id" sachet_item_id
 FROM inventory."supplierItem"
   LEFT JOIN inventory."bulkItem" ON "supplierItem"."id" = "bulkItem"."supplierItemId"
   LEFT JOIN inventory."sachetItem" ON "sachetItem"."bulkItemId" = "bulkItem"."id"
@@ -45,6 +46,8 @@ IF matched_sachet IS NOT NULL THEN arr := arr || jsonb_build_object(
   supplier_item.id,
   'supplierItemUnit',
   supplier_item.unit,
+  'matched_sachetId',
+  supplier_item.sachet_item_id,
   'isProcessingExactMatch',
   true
 );
@@ -56,7 +59,8 @@ SELECT "supplierItem".id,
   "processingName",
   "bulkItem".id "processingId",
   "sachetItem"."unitSize",
-  "sachetItem"."unit"
+  "sachetItem"."unit",
+  "sachetItem"."id" sachet_item_id
 FROM inventory."supplierItem"
   LEFT JOIN inventory."bulkItem" ON "supplierItem"."id" = "bulkItem"."supplierItemId"
   LEFT JOIN inventory."sachetItem" ON "sachetItem"."bulkItemId" = "bulkItem"."id"
@@ -74,6 +78,8 @@ IF matched_sachet IS NOT NULL THEN arr := arr || jsonb_build_object(
   supplier_item.id,
   'supplierItemUnit',
   supplier_item.unit,
+  'matched_sachetId',
+  supplier_item.sachet_item_id,
   'isProcessingExactMatch',
   true
 );
