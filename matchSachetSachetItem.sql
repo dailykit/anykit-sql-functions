@@ -15,25 +15,25 @@
  
  same as matchSachetSupplierItem but matches the sachet quantity not the supplierItem.unitSize
  */
-CREATE OR REPLACE FUNCTION inventory."matchSachetSachetItem"(sachets jsonb, supplierItemInputs integer []) RETURNS SETOF crm."customerData" LANGUAGE plpgsql STABLE AS $function$
+CREATE OR REPLACE FUNCTION inventory."matchSachetSachetItem"(sachets jsonb, sachetItemIds integer []) RETURNS SETOF crm."customerData" LANGUAGE plpgsql STABLE AS $function$
 DECLARE supplier_item record;
 sachet record;
 result jsonb;
 arr jsonb := '[]';
 matched_sachet jsonb;
-BEGIN IF supplierItemInputs IS NOT NULL THEN FOR supplier_item IN
+BEGIN IF sachetItemIds IS NOT NULL THEN FOR supplier_item IN
 SELECT "supplierItem".id,
   "supplierItem"."name",
   "processingName",
   "bulkItem".id "processingId",
   "sachetItem"."unitSize",
   "sachetItem"."unit",
-  "sachetItem"."id" sachet_item_id
+  "sachetItem".id sachet_item_id
 FROM inventory."supplierItem"
   LEFT JOIN inventory."bulkItem" ON "supplierItem"."id" = "bulkItem"."supplierItemId"
   LEFT JOIN inventory."sachetItem" ON "sachetItem"."bulkItemId" = "bulkItem"."id"
 WHERE "sachetItem"."unitSize" IS NOT NULL
-  AND "supplierItem".id = ANY (supplierItemInputs) LOOP
+  AND "sachetItem".id = ANY (sachetItemIds) LOOP
 SELECT *
 FROM jsonb_array_elements(sachets) AS found_sachet
 WHERE (found_sachet->>'quantity')::int = supplier_item."unitSize"
