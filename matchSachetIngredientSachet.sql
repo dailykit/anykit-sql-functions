@@ -15,13 +15,13 @@
  
  same as matchSachetSupplierItem but matches the sachet quantity not the supplierItem.unitSize
  */
-CREATE OR REPLACE FUNCTION inventory."matchedSachetIngredientSachet"(sachets jsonb, ingredientIds integer []) RETURNS SETOF crm."customerData" LANGUAGE plpgsql STABLE AS $function$ 
+CREATE OR REPLACE FUNCTION inventory."matchSachetIngredientSachet"(sachets jsonb, ingredientSachetIds integer []) RETURNS SETOF crm."customerData" LANGUAGE plpgsql STABLE AS $function$ 
 DECLARE sachet_ingredient record;
 sachet record;
 result jsonb;
 arr jsonb := '[]';
 matched_sachet jsonb;
-BEGIN IF ingredientIds IS NOT NULL THEN FOR sachet_ingredient IN 
+BEGIN IF ingredientSachetIds IS NOT NULL THEN FOR sachet_ingredient IN 
 -- select all sachets from ingreident.ingredientSachet
 -- join ingredientProcessing and ingredient
 -- filter out sachets with no quantity
@@ -38,7 +38,7 @@ FROM
 WHERE
   "ingredientSachet"."quantity" IS NOT NULL
   AND "ingredientProcessing"."processingName" IS NOT NULL
-  AND "ingredient".id = ANY (ingredientIds) LOOP
+  AND "ingredientSachet".id = ANY (ingredientSachetIds)
 SELECT
   *
 FROM
