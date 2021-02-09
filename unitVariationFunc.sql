@@ -3,10 +3,14 @@
 /*     @returns: json{custom: {[unitName]: value}, standard: {[unitName]: value}} */
 
 CREATE OR REPLACE FUNCTION inventory."testFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default 'null') 
-RETURNS SETOF crm."customerData" 
+RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$ 
 DECLARE 
-result jsonb;
+-- all these are standard definitions. The base for mass should be in g (grams).
+-- the base for volumes should be in ml (mililitres)
+-- the bulkDensity should only be available in volumes.
+-- the value of bulkDensity should be between 0-1.
+-- this value of bulkDensity tells the equivalent mass of this volume in base of volume (ml) to the base of mass (g).
 definitions jsonb := $${"kg":{"name":{"abbr":"kg","singular":"Kilogram","plural":"Kilograms"},"base":"g","factor":1000},
                         "g":{"name":{"abbr":"g","singular":"Gram","plural":"Grams"},"base":"g","factor":1},
                         "mg":{"name":{"abbr":"mg","singular":"Miligram","plural":"MiliGrams"},"base":"g","factor":0.001},
@@ -15,21 +19,97 @@ definitions jsonb := $${"kg":{"name":{"abbr":"kg","singular":"Kilogram","plural"
                         "ml":{"name":{"abbr":"ml","singular":"Millilitre","plural":"Millilitres"},"base":"ml","factor":1,"bulkDensity":1}
                         }$$;
 known_units text[] := '{kg, g, mg, oz, l, ml}';
+unit_key record;
+from_definition jsonb;
+local_result jsonb;
+result_standard jsonb := '{}'::jsonb;
+result jsonb := '{"error": null, "result": null}'::jsonb;
+converted_value numeric;
 
 BEGIN  
 
-  -- 1. Figure out how to create and check known units --done
-  -- 2. Check if @param unit is in known units, return error if not! --done
   IF unit = ANY(known_units) THEN
-  -- 3. convert definitions from json to json in postgre --done
-  -- 4. loop through available definition and create the result jsonb
-  -- 5. return result as data --done
-    result := '{"message": "reached the else land!"}'::jsonb;
-  ELSE
-    result := '{"error": "invalid unit provided!"}'::jsonb;
-  END IF;
-    
 
+  -- 1. get the from definition of this unit;
+    from_definition := definitions -> unit;
+
+    FOR unit_key IN SELECT key, value FROM jsonb_each(definitions) LOOP
+      -- unit_key is definition from definitions.
+      IF unit_key.value -> 'bulkDensity' THEN
+        -- to is volume
+        IF from_definition -> 'bulkDensity' THEN
+          -- from is volume too
+          converted_value := quantity * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+          
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            unit_key.key,
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        ELSE
+          -- from is mass
+          converted_value := quantity * (unit_key.value->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            unit_key.key,
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        END IF;
+      ELSE
+        -- to is mass
+        IF from_definition -> 'bulkDensity' THEN
+          -- from is volume 
+          converted_value := quantity * (from_definition->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+          
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            unit_key.key,
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        ELSE
+          -- from is mass too
+          converted_value := quantity * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+            
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            unit_key.key,
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        END IF;
+      END IF;
+      result_standard := result_standard || jsonb_build_object(unit_key.key, local_result);
+    END LOOP;
+
+    result := jsonb_build_object(
+      'result',
+      jsonb_build_object('standard', result_standard),
+      'error',
+      'null'
+    );
+  ELSE
+    result := '{"error": "invalid unit provided!", "result": null}'::jsonb;
+  END IF;
 
 RETURN QUERY
 SELECT
