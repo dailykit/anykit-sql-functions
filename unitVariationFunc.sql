@@ -2,7 +2,7 @@
 /*     @params: tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default 'null' */
 /*     @returns: json{custom: {[unitName]: value}, standard: {[unitName]: value}} */
 
-CREATE OR REPLACE FUNCTION inventory."testFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default 'null') 
+CREATE OR REPLACE FUNCTION inventory."unitVariationFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default 'null') 
 RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$ 
 DECLARE 
