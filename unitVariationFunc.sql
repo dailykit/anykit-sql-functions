@@ -184,7 +184,11 @@ BEGIN
       'null'
     );
   ELSE
-    result := '{"error": "invalid unit provided!", "result": null}'::jsonb;
+
+    -- check if customConversion is possible with @param unit
+    -- inventory."customUnitVariationFunc" also does error handling for us :)
+    SELECT data from inventory."customUnitVariationFunc"(quantity, unit, unitTo) into result;
+
   END IF;
 
 RETURN QUERY
