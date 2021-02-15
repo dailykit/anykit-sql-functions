@@ -16,21 +16,19 @@
       the same formula works for custom to custom rules where the toFactor has same standard unit
 
     - SELECT '{"name": "siddhant"}'::jsonb->'name'->'some'->'twosome' as main, is valid sql
-
-  ### Things I am afraid of:
-
-  1. How would I handle custom to custom unit conversion? (crate to bags)?
-  2. What if they define rules like these:
-    1 crate -> 10kgs
-    1 crate -> 10 bags
-    10 bags -> 1000 grams.
 */
 
 /* How this function will be called?
    -> This will be called inside unitVariationFunc if the unit is not in standard definitions
 */
 
--- TODO: convert from standard to custom unit;
+/* When this function will be called?
+    -> @param unit in unitVariationFunc is not in standard_definitions
+    -> toUnit is in standard_defnitions (custom to standard conversion)
+
+    if toUnit is in standard_definitions, unitVariationFunc will call another func
+    ... to convert from standard to custom.
+*/
 
 CREATE OR REPLACE FUNCTION inventory."customUnitVariationFunc"(quantity numeric, customUnit text, toUnit text default null)
 RETURNS SETOF crm."customerData"
@@ -64,13 +62,9 @@ BEGIN
           )
         );
 
-    IF toUnit IS NULL THEN
-      SELECT data->'result'->'standard' FROM inventory."unitVariationFunc"('tablename', quantity, custom_unit_definition.output_unit) into standard_conversions;
---    ELSE 
-      -- TODO: convert only to toUnit
-
-    END IF;
-
+    SELECT data->'result'->'standard' 
+      FROM inventory."unitVariationFunc"('tablename', quantity * custom_unit_definition.conversion_factor, custom_unit_definition.output_unit, -1, toUnit) 
+      INTO standard_conversions;
   ELSE 
 
     result := 

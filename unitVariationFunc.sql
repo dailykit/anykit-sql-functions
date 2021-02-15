@@ -174,8 +174,9 @@ BEGIN
       END IF;
       
     result_standard := result_standard || jsonb_build_object(to_definition->'name'->>'abbr', local_result);
-    
   END IF;
+
+  -- TODO: is is_unit_to_custom == true -> handle standard to custom (probably another sql func)
 
     result := jsonb_build_object(
       'result',
@@ -183,7 +184,7 @@ BEGIN
       'error',
       'null'
     );
-  ELSE
+  ELSE -- @param unit is not in standard_definitions
 
     -- check if customConversion is possible with @param unit
     -- inventory."customUnitVariationFunc" also does error handling for us :)
