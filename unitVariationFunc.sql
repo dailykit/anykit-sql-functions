@@ -3,7 +3,6 @@
 /*     @returns: json{custom: {[unitName]: value}, standard: {[unitName]: value}} */
 
 -- TODO: ACK fromBulkDensity (bulkDensity param)
--- TODO: ACK unitTo param
 -- TODO: for volumes, add usedBulkDensity in response object
 
 CREATE OR REPLACE FUNCTION inventory."unitVariationFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default null) 
@@ -38,7 +37,8 @@ BEGIN
   -- 1. get the from definition of this unit;
     from_definition := definitions -> unit;
 
-    IF unitTo IS NULL THEN
+    -- gql forces the value of unitTo, passing "" should work.
+    IF unitTo IS NULL OR unitTo = '' THEN
     FOR unit_key IN SELECT key, value FROM jsonb_each(definitions) LOOP
       -- unit_key is definition from definitions.
       IF unit_key.value -> 'bulkDensity' THEN
