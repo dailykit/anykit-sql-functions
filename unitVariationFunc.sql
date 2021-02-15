@@ -2,7 +2,11 @@
 /*     @params: tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default 'null' */
 /*     @returns: json{custom: {[unitName]: value}, standard: {[unitName]: value}} */
 
-CREATE OR REPLACE FUNCTION inventory."unitVariationFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default 'null') 
+-- TODO: ACK fromBulkDensity (bulkDensity param)
+-- TODO: ACK unitTo param
+-- TODO: for volumes, add usedBulkDensity in response object
+
+CREATE OR REPLACE FUNCTION inventory."unitVariationFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default null) 
 RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$ 
 DECLARE 
@@ -21,6 +25,7 @@ definitions jsonb := $${"kg":{"name":{"abbr":"kg","singular":"Kilogram","plural"
 known_units text[] := '{kg, g, mg, oz, l, ml}';
 unit_key record;
 from_definition jsonb;
+to_definition jsonb;
 local_result jsonb;
 result_standard jsonb := '{}'::jsonb;
 result jsonb := '{"error": null, "result": null}'::jsonb;
@@ -33,6 +38,7 @@ BEGIN
   -- 1. get the from definition of this unit;
     from_definition := definitions -> unit;
 
+    IF unitTo IS NULL THEN
     FOR unit_key IN SELECT key, value FROM jsonb_each(definitions) LOOP
       -- unit_key is definition from definitions.
       IF unit_key.value -> 'bulkDensity' THEN
@@ -100,6 +106,76 @@ BEGIN
       END IF;
       result_standard := result_standard || jsonb_build_object(unit_key.key, local_result);
     END LOOP;
+  ELSE -- unitTo is not null
+    to_definition := definitions -> unitTo;
+
+      IF to_definition -> 'bulkDensity' THEN
+        -- to is volume
+        IF from_definition -> 'bulkDensity' THEN
+          -- from is volume too
+          converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
+          
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            to_definition->'name'->>'abbr',
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        ELSE
+          -- from is mass
+          converted_value := quantity * (to_definition->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
+
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            to_definition->'name'->>'abbr',
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        END IF;
+      ELSE
+        -- to is mass
+        IF from_definition -> 'bulkDensity' THEN
+          -- from is volume 
+          converted_value := quantity * (from_definition->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
+          
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            to_definition->'name'->>'abbr',
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        ELSE
+          -- from is mass too
+          converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
+            
+          local_result := jsonb_build_object(
+            'fromUnitName',
+            unit,
+            'toUnitName',
+            to_definition->'name'->>'abbr',
+            'value',
+            quantity,
+            'equivalentValue',
+            converted_value
+          );
+        END IF;
+      END IF;
+      
+    result_standard := result_standard || jsonb_build_object(to_definition->'name'->>'abbr', local_result);
+    
+  END IF;
 
     result := jsonb_build_object(
       'result',
