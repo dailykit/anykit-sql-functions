@@ -4,8 +4,10 @@
   optional columns: (bulkDensity numeric) 
 */
 
+-- TODO: respect to_unit param
+
 -- for supplierItem Table (unit text, unitSize integer)
-CREATE OR REPLACE FUNCTION inventory.unit_conversions_supplier_item(item inventory."supplierItem") 
+CREATE OR REPLACE FUNCTION inventory.unit_conversions_supplier_item(item inventory."supplierItem", to_unit text default null) 
 RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$
 DECLARE
@@ -20,5 +22,6 @@ BEGIN
   SELECT
     1 as id,
     result as data;
+
 END;
 $function$
