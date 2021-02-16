@@ -182,7 +182,7 @@ BEGIN
       'result',
       jsonb_build_object('standard', result_standard),
       'error',
-      'null'
+      'null'::jsonb
     );
   ELSE -- @param unit is not in standard_definitions
 
