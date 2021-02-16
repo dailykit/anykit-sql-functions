@@ -10,14 +10,21 @@ RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$
 DECLARE
 
+known_units text[] := '{kg, g, mg, oz, l, ml}';
 result jsonb;
 
 BEGIN
 
-  -- supplierItem table does not have the bulkDensity field.
-  -- default value for bulkDensity should be -1.
-  SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
-    INTO result;
+  IF to_unit = ANY(known_units) THEN
+    -- supplierItem table does not have the bulkDensity field.
+    -- default value for bulkDensity should be -1.
+    SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
+      INTO result;
+  ELSE
+    -- convert from standard to custom
+    SELECT data FROM inventory."standardToCustomUnitConverter"(item."unitSize"::numeric, item.unit, -1, to_unit) 
+      INTO result;
+  END IF;
 
   RETURN QUERY
   SELECT
