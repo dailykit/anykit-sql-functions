@@ -33,7 +33,6 @@ BEGIN
       SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
         INTO result;
     ELSE
-      -- TODO: convert from custom to custom unit.
       SELECT data FROM inventory."customToCustomUnitConverter"(item."unitSize"::numeric, item.unit, -1, to_unit) 
         INTO result;
     END IF;
