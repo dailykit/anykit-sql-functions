@@ -15,15 +15,28 @@ result jsonb;
 
 BEGIN
 
-  IF to_unit = ANY(known_units) THEN
-    -- supplierItem table does not have the bulkDensity field.
-    -- default value for bulkDensity should be -1.
-    SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
-      INTO result;
+  IF item.unit = ANY(known_units) THEN
+    IF to_unit = ANY(known_units) THEN
+      -- supplierItem table does not have the bulkDensity field.
+      -- default value for bulkDensity should be -1.
+      SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
+        INTO result;
+    ELSE
+      -- convert from standard to custom
+      SELECT data FROM inventory."standardToCustomUnitConverter"(item."unitSize"::numeric, item.unit, -1, to_unit) 
+        INTO result;
+    END IF;
   ELSE
-    -- convert from standard to custom
-    SELECT data FROM inventory."standardToCustomUnitConverter"(item."unitSize"::numeric, item.unit, -1, to_unit) 
-      INTO result;
+    IF to_unit = ANY(known_units) THEN
+      -- supplierItem table does not have the bulkDensity field.
+      -- default value for bulkDensity should be -1.
+      SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
+        INTO result;
+    ELSE
+      -- TODO: convert from custom to custom unit.
+      SELECT data FROM inventory."customToCustomUnitConverter"(item."unitSize"::numeric, item.unit, -1, to_unit) 
+        INTO result;
+    END IF;
   END IF;
 
   RETURN QUERY

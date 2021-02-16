@@ -175,9 +175,6 @@ BEGIN
       
     result_standard := result_standard || jsonb_build_object(to_definition->'name'->>'abbr', local_result);
   END IF;
-
-  -- TODO: is is_unit_to_custom == true -> handle standard to custom (probably another sql func)
-
     result := jsonb_build_object(
       'result',
       jsonb_build_object('standard', result_standard),
