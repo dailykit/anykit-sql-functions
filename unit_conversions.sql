@@ -16,7 +16,10 @@ result jsonb;
 BEGIN
 
   IF item.unit = ANY(known_units) THEN
-    IF to_unit = ANY(known_units) THEN
+    IF to_unit = ANY(known_units) 
+      OR to_unit = '' 
+      OR to_unit IS NULL
+      THEN
       -- supplierItem table does not have the bulkDensity field.
       -- default value for bulkDensity should be -1.
       SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
@@ -27,7 +30,10 @@ BEGIN
         INTO result;
     END IF;
   ELSE
-    IF to_unit = ANY(known_units) THEN
+    IF to_unit = ANY(known_units) 
+      OR to_unit = ''
+      OR to_unit IS NULL
+      THEN
       -- supplierItem table does not have the bulkDensity field.
       -- default value for bulkDensity should be -1.
       SELECT data FROM inventory."unitVariationFunc"('supplierItem', item."unitSize"::numeric, item.unit, -1, to_unit) 
