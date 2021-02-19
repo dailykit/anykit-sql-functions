@@ -5,7 +5,17 @@
 -- TODO: ACK fromBulkDensity (bulkDensity param)
 -- TODO: for volumes, add usedBulkDensity in response object
 
-CREATE OR REPLACE FUNCTION inventory."unitVariationFunc"(tableName text, quantity numeric, unit text, bulkDensity numeric default 1, unitTo text default null) 
+CREATE OR REPLACE 
+-- @param unitTo is always standard here
+-- @param unit can be standard or custom
+-- @param unit_id is available when unit is custom
+FUNCTION inventory."unitVariationFunc"(
+  quantity numeric, 
+  unit text default null, 
+  bulkDensity numeric default 1, 
+  unitTo text default null, 
+  unit_id integer default null
+) 
 RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$ 
 DECLARE 
@@ -37,75 +47,76 @@ BEGIN
   -- 1. get the from definition of this unit;
     from_definition := definitions -> unit;
 
-    -- gql forces the value of unitTo, passing "" should work.
+    -- gql forces the value of unitTo, passing '' should work.
     IF unitTo IS NULL OR unitTo = '' THEN
-    FOR unit_key IN SELECT key, value FROM jsonb_each(definitions) LOOP
-      -- unit_key is definition from definitions.
-      IF unit_key.value -> 'bulkDensity' THEN
-        -- to is volume
-        IF from_definition -> 'bulkDensity' THEN
-          -- from is volume too
-          converted_value := quantity * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
-          
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            unit,
-            'toUnitName',
-            unit_key.key,
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        ELSE
-          -- from is mass
-          converted_value := quantity * (unit_key.value->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
 
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            unit,
-            'toUnitName',
-            unit_key.key,
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        END IF;
-      ELSE
-        -- to is mass
-        IF from_definition -> 'bulkDensity' THEN
-          -- from is volume 
-          converted_value := quantity * (from_definition->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
-          
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            unit,
-            'toUnitName',
-            unit_key.key,
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        ELSE
-          -- from is mass too
-          converted_value := quantity * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+      FOR unit_key IN SELECT key, value FROM jsonb_each(definitions) LOOP
+        -- unit_key is definition from definitions.
+        IF unit_key.value -> 'bulkDensity' THEN
+          -- to is volume
+          IF from_definition -> 'bulkDensity' THEN
+            -- from is volume too
+            converted_value := quantity * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
             
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            unit,
-            'toUnitName',
-            unit_key.key,
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
+            local_result := jsonb_build_object(
+              'fromUnitName',
+              unit,
+              'toUnitName',
+              unit_key.key,
+              'value',
+              quantity,
+              'equivalentValue',
+              converted_value
+            );
+          ELSE
+            -- from is mass
+            converted_value := quantity * (unit_key.value->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+
+            local_result := jsonb_build_object(
+              'fromUnitName',
+              unit,
+              'toUnitName',
+              unit_key.key,
+              'value',
+              quantity,
+              'equivalentValue',
+              converted_value
+            );
+          END IF;
+        ELSE
+          -- to is mass
+          IF from_definition -> 'bulkDensity' THEN
+            -- from is volume 
+            converted_value := quantity * (from_definition->>'bulkDensity')::numeric * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+            
+            local_result := jsonb_build_object(
+              'fromUnitName',
+              unit,
+              'toUnitName',
+              unit_key.key,
+              'value',
+              quantity,
+              'equivalentValue',
+              converted_value
+            );
+          ELSE
+            -- from is mass too
+            converted_value := quantity * (from_definition->>'factor')::numeric / (unit_key.value->>'factor')::numeric;
+              
+            local_result := jsonb_build_object(
+              'fromUnitName',
+              unit,
+              'toUnitName',
+              unit_key.key,
+              'value',
+              quantity,
+              'equivalentValue',
+              converted_value
+            );
+          END IF;
         END IF;
-      END IF;
-      result_standard := result_standard || jsonb_build_object(unit_key.key, local_result);
-    END LOOP;
+        result_standard := result_standard || jsonb_build_object(unit_key.key, local_result);
+      END LOOP;
   ELSE -- unitTo is not null
     to_definition := definitions -> unitTo;
 
@@ -183,9 +194,18 @@ BEGIN
     );
   ELSE -- @param unit is not in standard_definitions
 
-    -- check if customConversion is possible with @param unit
-    -- inventory."customUnitVariationFunc" also does error handling for us :)
-    SELECT data from inventory."customUnitVariationFunc"(quantity, unit, unitTo) into result;
+    IF unit_id IS NULL THEN
+      result := jsonb_build_object(
+        'error',
+        'unit_id must not be null'
+      );
+    ELSE
+      -- check if customConversion is possible with @param unit
+      -- inventory."customUnitVariationFunc" also does error handling for us :)
+      -- @param unit_id should not be null here
+      -- @param unitTo is a standard unit
+      SELECT data from inventory."customUnitVariationFunc"(quantity, unit_id, unitTo) into result;
+    END IF;
 
   END IF;
 

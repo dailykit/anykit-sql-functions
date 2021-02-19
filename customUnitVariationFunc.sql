@@ -30,7 +30,7 @@
     ... to convert from standard to custom.
 */
 
-CREATE OR REPLACE FUNCTION inventory."customUnitVariationFunc"(quantity numeric, customUnit text, toUnit text default null)
+CREATE OR REPLACE FUNCTION inventory."customUnitVariationFunc"(quantity numeric, unit_id integer, toUnit text default null)
 RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $$
 
@@ -45,12 +45,14 @@ BEGIN
 
   SELECT "inputUnitName" input_unit, "outputUnitName" output_unit, "conversionFactor" conversion_factor 
     FROM master."unitConversion" 
-    WHERE "inputUnitName" = customUnit
+    WHERE id = unit_id
     into custom_unit_definition;
 
   If custom_unit_definition IS NOT NULL THEN
     custom_conversions := 
-        jsonb_build_object(customUnit, jsonb_build_object(
+        jsonb_build_object(
+          custom_unit_definition.input_unit, 
+          jsonb_build_object(
             'value', 
             quantity, 
             'toUnitName', 
@@ -63,12 +65,12 @@ BEGIN
         );
 
     SELECT data->'result'->'standard' 
-      FROM inventory."unitVariationFunc"('tablename', quantity * custom_unit_definition.conversion_factor, custom_unit_definition.output_unit, -1, toUnit) 
+      FROM inventory."unitVariationFunc"(quantity * custom_unit_definition.conversion_factor, custom_unit_definition.output_unit, -1, toUnit) 
       INTO standard_conversions;
   ELSE 
 
     result := 
-      format('{"error": "no custom unit is defined with the name: %s, create a conversion rule in the master.\"unitConversion\" table."}', customUnit)::jsonb;
+      format('{"error": "no custom unit is defined with the name: %s, create a conversion rule in the master.\"unitConversion\" table."}', custom_unit_definition.input_unit)::jsonb;
 
   END IF;
 
