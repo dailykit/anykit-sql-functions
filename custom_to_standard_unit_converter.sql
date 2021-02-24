@@ -111,5 +111,5 @@ BEGIN
   SELECT
     1 as id,
     result as data;
-END
+END;
 $$
