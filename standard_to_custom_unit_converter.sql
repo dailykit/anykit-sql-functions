@@ -63,7 +63,7 @@ BEGIN
     result := 
       format(
         '{"error": "no custom unit is defined with the id: %s and name: %s, create a conversion rule in the master.\"unitConversion\" table."}', 
-        unit_to_id,
+        unit_conversion_id,
         to_unit
       )::jsonb;
 
