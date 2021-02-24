@@ -132,7 +132,7 @@ BEGIN
           from_unit, 
           from_bulk_density,
           custom_unit_key.input_unit,
-          (-1)::numeric,
+          (1)::numeric,
           custom_unit_key.unit_conversion_id
         ) INTO local_result;
 
