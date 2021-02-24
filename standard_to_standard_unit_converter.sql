@@ -47,85 +47,8 @@ BEGIN
   from_definition := definitions -> from_unit;
 
   -- gql forces the value of uni_to, passing '' should work.
-  IF to_unit IS NOT NULL OR to_unit != '' THEN
-      to_definition := definitions -> to_unit;
-
-      IF to_definition -> 'bulkDensity' THEN
-        -- to is volume
-        IF from_definition -> 'bulkDensity' THEN
-          -- from is volume too
-          -- ignore bulkDensity as they should be same in volume to volume of same entity.
-          converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
-          
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            from_unit,
-            'toUnitName',
-            to_definition->'name'->>'abbr',
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        ELSE
-          -- from is mass
-          converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric / (to_unit_bulk_density)::numeric;
-
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            from_unit,
-            'toUnitName',
-            to_definition->'name'->>'abbr',
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        END IF;
-      ELSE
-        -- to is mass
-        IF from_definition -> 'bulkDensity' THEN
-          -- from is volume 
-          converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric * (from_bulk_density)::numeric;
-          
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            from_unit,
-            'toUnitName',
-            to_definition->'name'->>'abbr',
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        ELSE
-          -- from is mass too
-          converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
-            
-          local_result := jsonb_build_object(
-            'fromUnitName',
-            from_unit,
-            'toUnitName',
-            to_definition->'name'->>'abbr',
-            'value',
-            quantity,
-            'equivalentValue',
-            converted_value
-          );
-        END IF;
-      END IF;
-      
-    result_standard := result_standard || jsonb_build_object(to_definition->'name'->>'abbr', local_result);
-
-    result := jsonb_build_object(
-      'result',
-      jsonb_build_object('standard', result_standard),
-      'error',
-      'null'::jsonb
-    );
-
-  ELSE -- to_unit is '', convert to all (standard to custom)
-
+  IF to_unit = '' OR to_unit IS NULL THEN 
+    -- to_unit is '', convert to all (standard to custom)
     SELECT data from inventory.standard_to_all_converter(
       quantity,
       from_unit, 
@@ -135,6 +58,82 @@ BEGIN
       entity_id,
       all_mode
     ) INTO result;
+  ELSE 
+    to_definition := definitions -> to_unit;
+
+    IF to_definition -> 'bulkDensity' THEN
+      -- to is volume
+      IF from_definition -> 'bulkDensity' THEN
+        -- from is volume too
+        -- ignore bulkDensity as they should be same in volume to volume of same entity.
+        converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
+        
+        local_result := jsonb_build_object(
+          'fromUnitName',
+          from_unit,
+          'toUnitName',
+          to_definition->'name'->>'abbr',
+          'value',
+          quantity,
+          'equivalentValue',
+          converted_value
+        );
+      ELSE
+        -- from is mass
+        converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric / (to_unit_bulk_density)::numeric;
+
+        local_result := jsonb_build_object(
+          'fromUnitName',
+          from_unit,
+          'toUnitName',
+          to_definition->'name'->>'abbr',
+          'value',
+          quantity,
+          'equivalentValue',
+          converted_value
+        );
+      END IF;
+    ELSE
+      -- to is mass
+      IF from_definition -> 'bulkDensity' THEN
+        -- from is volume 
+        converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric * (from_bulk_density)::numeric;
+        
+        local_result := jsonb_build_object(
+          'fromUnitName',
+          from_unit,
+          'toUnitName',
+          to_definition->'name'->>'abbr',
+          'value',
+          quantity,
+          'equivalentValue',
+          converted_value
+        );
+      ELSE
+        -- from is mass too
+        converted_value := quantity * (from_definition->>'factor')::numeric / (to_definition->>'factor')::numeric;
+          
+        local_result := jsonb_build_object(
+          'fromUnitName',
+          from_unit,
+          'toUnitName',
+          to_definition->'name'->>'abbr',
+          'value',
+          quantity,
+          'equivalentValue',
+          converted_value
+        );
+      END IF;
+    END IF;
+    
+  result_standard := result_standard || jsonb_build_object(to_definition->'name'->>'abbr', local_result);
+
+  result := jsonb_build_object(
+    'result',
+    jsonb_build_object('standard', result_standard),
+    'error',
+    'null'::jsonb
+  );
 
   END IF;
 RETURN QUERY
