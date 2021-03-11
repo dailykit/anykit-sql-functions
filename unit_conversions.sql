@@ -4,166 +4,69 @@
   optional columns: (bulkDensity numeric)_id 
 */
 
+/*
+  @param input jsonb 
+  {
+      "givenQuantity" : "100", if not given, default is 1
+      "givenUnit*" : "kg",
+      "returnUnits" : [crate, jar],
+      "appliedUnitConversions" : [3,4,5,6,7,8],
+      "tablename": "",
+      "schemaname": "",
+  }
+*/
+-- example argument for @param input
+/* {"givenQuantity" : 100, "bulkDensity": 1, "givenUnit" : "kg", "returnUnits" : ["crate", "oz", "kg", "g", "bag"], "customUnitConversionIds" : [2,6]} */
+
 -- for supplierItem Table (unit text, unitSize integer)
 CREATE OR REPLACE FUNCTION inventory.unit_conversions_supplier_item(
   item                    inventory."supplierItem", -- passed by hasura
-  from_unit               text,                     -- if '', take value from `item`
-  from_unit_bulk_density  numeric,                  -- -1 to take value from `item`
-  quantity                numeric,                  -- -1 to take value from `item`
-  to_unit                 text,                     -- if '', convert to all possible units
-  to_unit_bulk_density    numeric                   -- -1 to take value from `item`
+  input                   jsonb
 ) 
 RETURNS SETOF crm."customerData"
 LANGUAGE plpgsql STABLE AS $function$
 DECLARE
 
-  local_quantity                   numeric;
-  local_from_unit                  text; 
-  local_from_unit_bulk_density     numeric; 
-  local_to_unit_bulk_density       numeric;
+  local_quantity    numeric;
+  local_return_units text[];
+  local_custom_unit_ids int[];
+  bulk_density      numeric;
 
-  known_units                      text[] := '{kg, g, mg, oz, l, ml}';
-  result                           jsonb;
-  custom_to_unit_conversion_id     integer;
-  custom_from_unit_conversion_id   integer;
+  result            jsonb := '{}';
+  rule              record;
 
 BEGIN
 
   /* setup */
 
   -- resolve quantity
-  IF quantity IS NULL 
-    OR quantity = -1 THEN
-    
-    local_quantity := item."unitSize"::numeric;
+  IF input -> 'givenQuantity' IS NULL THEN
+    -- take quantity from item record
+    CASE WHEN item."unitSize" IS NULL THEN
+      local_quantity := 1;
+    ELSE 
+      local_quantity := item."unitSize"::numeric;
+    END CASE;
   ELSE
-    local_quantity := quantity;
+    -- take quantity from input jsonb arg
+    local_quantity := (input ->> 'givenQuantity')::numeric;
   END IF;
 
-  -- resolve from_unit
-  IF from_unit IS NULL 
-    OR from_unit = ''
-    THEN
-    local_from_unit := item.unit;
+  -- resolve bulk_density
+  IF input -> 'bulkDensity' IS NULL THEN
+    bulk_density := item."bulkDensity";
   ELSE
-    local_from_unit := from_unit;
+    bulk_density := (input -> 'bulkDensity')::numeric;
   END IF;
 
-  -- resolve from_unit_bulk_density
-  IF from_unit_bulk_density IS NULL 
-    OR from_unit_bulk_density = -1 THEN
 
-    local_from_unit_bulk_density := item."bulkDensity";
-  ELSE
-    local_from_unit_bulk_density := from_unit_bulk_density;
-  END IF;
+  local_return_units := json_to_array((input->'returnUnits')::json);
+  local_custom_unit_ids := (json_to_array((input->'customUnitConversionIds')::json))::int[];
 
-  -- resolve to_unit_bulk_density
-  IF to_unit_bulk_density IS NULL 
-    OR to_unit_bulk_density = -1 THEN
-
-    local_to_unit_bulk_density := item."bulkDensity";
-  ELSE
-    local_to_unit_bulk_density := to_unit_bulk_density;
-  END IF;
-
-  IF to_unit <> ALL(known_units) AND to_unit != '' THEN
-    EXECUTE format(
-      $$SELECT 
-        "unitConversionId" unit_conversion_id
-      FROM %I.%I
-      INNER JOIN master."unitConversion"
-      ON "unitConversionId" = "unitConversion".id
-      WHERE "entityId" = (%s)::integer
-      AND "inputUnitName" = '%s';$$,
-      'inventory', -- schema name
-      'supplierItem_unitConversion', -- tablename
-      item.id,
-      to_unit
-    ) INTO custom_to_unit_conversion_id;
-  END IF;
-
-  IF local_from_unit <> ALL(known_units) THEN
-    EXECUTE format(
-      $$SELECT 
-        "unitConversionId" unit_conversion_id
-      FROM %I.%I
-      INNER JOIN master."unitConversion"
-      ON "unitConversionId" = "unitConversion".id
-      WHERE "entityId" = (%s)::integer
-      AND "inputUnitName" = '%s';$$,
-      'inventory', -- schema name
-      'supplierItem_unitConversion', -- tablename
-      item.id,
-      local_from_unit
-    ) INTO custom_from_unit_conversion_id;
-  END IF;
 
   /* end setup */
 
-  IF local_from_unit = ANY(known_units) THEN -- local_from_unit is standard
-    IF to_unit = ANY(known_units)
-      OR to_unit = ''
-      OR to_unit IS NULL THEN -- to_unit is also standard
-
-        SELECT data FROM inventory.standard_to_standard_unit_converter(
-          local_quantity, 
-          local_from_unit, 
-          local_from_unit_bulk_density,
-          to_unit,
-          local_to_unit_bulk_density,
-          'inventory', -- schema name
-          'supplierItem_unitConversion', -- tablename
-          item.id,
-          'all'
-        ) INTO result;
-
-    ELSE -- to_unit is custom and not ''
-
-      -- convert from standard to custom
-      SELECT data FROM inventory.standard_to_custom_unit_converter(
-        local_quantity, 
-        local_from_unit, 
-        local_from_unit_bulk_density,
-        to_unit,
-        local_to_unit_bulk_density,
-        custom_to_unit_conversion_id     
-      ) INTO result;
-
-    END IF;
-
-  ELSE -- local_from_unit is custom
-    
-    IF to_unit = ANY(known_units) 
-      OR to_unit = ''
-      OR to_unit IS NULL THEN -- to_unit is standard
-
-      SELECT data FROM inventory.custom_to_standard_unit_converter(
-        local_quantity, 
-        local_from_unit, 
-        local_from_unit_bulk_density,
-        to_unit,
-        local_to_unit_bulk_density,
-        custom_from_unit_conversion_id,
-        'inventory', -- schema name
-        'supplierItem_unitConversion', -- tablename
-        item.id
-      ) INTO result;
-
-    ELSE -- to_unit is also custom and not ''
-
-      SELECT data FROM inventory.custom_to_custom_unit_converter(
-        local_quantity, 
-        local_from_unit, 
-        local_from_unit_bulk_density, 
-        to_unit,
-        local_to_unit_bulk_density,
-        custom_from_unit_conversion_id,
-        custom_to_unit_conversion_id     
-      ) INTO result;
-
-    END IF;
-  END IF;
+  result := inventory.convert_units(local_quantity, input->>'givenUnit', local_return_units, local_custom_unit_ids);
 
   RETURN QUERY
   SELECT
